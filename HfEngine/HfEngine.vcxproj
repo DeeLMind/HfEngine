@@ -158,6 +158,7 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="DX\CmdListTreap.cpp" />
     <ClCompile Include="DX\D3DBuffer.cpp" />
     <ClCompile Include="DX\D3DDevice.cpp" />
     <ClCompile Include="DX\DX.cpp" />
@@ -175,6 +176,7 @@
     <ClCompile Include="Tests.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Include\CmdListTreap.h" />
     <ClInclude Include="Include\D3DBuffer.h" />
     <ClInclude Include="Include\D3DDevice.h" />
     <ClInclude Include="Include\DX.h" />

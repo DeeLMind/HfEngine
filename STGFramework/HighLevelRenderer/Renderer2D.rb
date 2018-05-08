@@ -168,7 +168,10 @@ class Renderer2D < DX::RenderPipeline
 	end
 	
 	def render
-		Graphics.re.push(self)
+		if !@renderred
+			Graphics.re.push(self)
+			@renderred = true
+		end
 	end
 	
 	def use_default_target

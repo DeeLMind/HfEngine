@@ -6,6 +6,7 @@
 #include "Shaders.h"
 #include "Texture2D.h"
 #include "SwapChain.h"
+#include "CmdListTreap.h"
 //#include "Utility\concurrentqueue.h"
 
 class InputLayout : public Utility::ReferredObject {
@@ -31,6 +32,8 @@ public:
 };
 
 class RenderPipeline : public Utility::ReferredObject {
+    //Data for CmdListTreap
+    int tid;
 public:
     Utility::ReferPtr<D3DDevice> device;
     ComPtr<ID3D11DeviceContext> native_context;
@@ -49,8 +52,11 @@ public:
     //OM data
     Utility::ReferPtr<Blender> blender;
     Utility::ReferPtr<RTT> rtt_target;
+
+    friend class CmdListTreap;
    
     void Initialize(D3DDevice *d) {
+        tid = 0;
         device = d;
         device->native_device->CreateDeferredContext(0, &native_context);
     }
@@ -138,10 +144,11 @@ public:
 
 class RemoteRenderExecutive : public Utility::ReferredObject {
     std::thread render_thread;
-    std::mutex queue_lock;
+    //std::mutex queue_lock;
     //moodycamel::ConcurrentQueue<ID3D11CommandList *> list_queue;
-    std::queue<ID3D11CommandList *> list_queue;
+    //std::queue<ID3D11CommandList *> list_queue;
     Utility::SleepFPSTimer timer;
+    Utility::ReferPtr<CmdListTreap> treap;
     bool exit_flag;
 public:
     Utility::ReferPtr<D3DDevice> device;
@@ -152,12 +159,14 @@ public:
         swapchain = swp;
         fps = fps_;
         exit_flag = false;
+        treap = Utility::ReferPtr<CmdListTreap>::New(device_);
         Run();
     }
     void Run() {
         render_thread = std::thread([this]() {
             ResetFPS(fps);
             while (!exit_flag) {
+                /*
                 ID3D11CommandList *clist = nullptr;
                 if(!list_queue.empty()){
                     queue_lock.lock();
@@ -169,6 +178,9 @@ public:
                     }
                     queue_lock.unlock();
                 }
+
+                */
+                treap->Render();
                 swapchain->Present();
                 timer.Await();
             }
@@ -178,20 +190,21 @@ public:
         ID3D11CommandList *list;
         rp->native_context->FinishCommandList(true, &list);
         if(!exit_flag){
-            queue_lock.lock();
-            list_queue.push(list);
-            queue_lock.unlock();
+            //queue_lock.lock();
+            //list_queue.push(list);
+            //queue_lock.unlock();
+            treap->Insert(rp, 233);
         }
     }
     inline void Terminate() {
         exit_flag = true;
         if(render_thread.joinable())
             render_thread.join(); 
-        auto x = list_queue._Get_container();
-        for (auto &l : x) {
-            l->Release();
-        }
-        x.clear();
+        //auto x = list_queue._Get_container();
+        //for (auto &l : x) {
+        //    l->Release();
+        //}
+        treap.Release();
         UnInitialize();
     }
     inline void ResetFPS(int fps_) {
@@ -209,6 +222,8 @@ public:
         UnInitialize();
     }
 };
+
+
 
 namespace Ext {
     namespace DX {
