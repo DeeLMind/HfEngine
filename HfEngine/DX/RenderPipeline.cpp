@@ -404,6 +404,7 @@ namespace Ext {
 
             //------------------------
             static VALUE RE_initialize(VALUE self, VALUE device, VALUE swp, VALUE fps) {
+                CheckArgs({device, swp, fps}, {DX::D3DDevice::klass, DX::SwapChain::klass, rb_cInteger});
                 auto re = GetNativeObject<RemoteRenderExecutive>(self);
                 re->Initialize(GetNativeObject<::D3DDevice>(device), 
                         GetNativeObject<::SwapChain>(swp), FIX2INT(fps));
@@ -417,10 +418,20 @@ namespace Ext {
                 GetNativeObject<RemoteRenderExecutive>(self)->ResetFPS(FIX2INT(fps));
                 return self;
             }
-            static VALUE RE_push(VALUE self, VALUE rp) {
-         //       if(!rb_obj_is_kind_of(rp, DX::RenderPipeline::klass))
-         //           rb_raise(rb_eArgError, "RemoteRenderExecutive#push : param should be a DX::RenderPipeline");
-                GetNativeObject<RemoteRenderExecutive>(self)->Push(GetNativeObject<::RenderPipeline>(rp));
+            static VALUE RE_push(VALUE self, VALUE rp, VALUE priority) {
+#ifdef _DEBUG
+                if(!rb_obj_is_kind_of(rp, DX::RenderPipeline::klass))
+                    rb_raise(rb_eArgError, "RemoteRenderExecutive#push : param should be a DX::RenderPipeline");
+#endif
+                GetNativeObject<RemoteRenderExecutive>(self)->Push(GetNativeObject<::RenderPipeline>(rp), FIX2INT(priority));
+                return self;
+            }
+            static VALUE RE_render(VALUE self, VALUE rp) {
+#ifdef _DEBUG
+                if (!rb_obj_is_kind_of(rp, DX::RenderPipeline::klass))
+                    rb_raise(rb_eArgError, "RemoteRenderExecutive#swap : param should be a DX::RenderPipeline");
+#endif
+                GetNativeObject<RemoteRenderExecutive>(self)->Render(GetNativeObject<::RenderPipeline>(rp));
                 return self;
             }
 
@@ -511,7 +522,8 @@ namespace Ext {
                 rb_define_alloc_func(klass_remote_render_executive, RefObjNew<::RemoteRenderExecutive>);
                 rb_define_method(klass_remote_render_executive, "initialize", (rubyfunc)RE_initialize, 3);
                 rb_define_method(klass_remote_render_executive, "reset_fps", (rubyfunc)RE_reset_fps, 1);
-                rb_define_method(klass_remote_render_executive, "push", (rubyfunc)RE_push, 1);
+                rb_define_method(klass_remote_render_executive, "push", (rubyfunc)RE_push, 2);
+                rb_define_method(klass_remote_render_executive, "render", (rubyfunc)RE_render, 1);
                 rb_define_method(klass_remote_render_executive, "terminate", (rubyfunc)RE_terminate, 0);
 
 

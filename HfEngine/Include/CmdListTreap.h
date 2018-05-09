@@ -27,6 +27,7 @@ class ComPtr {
 #include "stdafx.h"
 #include "DX.h"
 #include <random>
+#include <unordered_map>
 #endif
 
 #include "Utility/referptr.h"
@@ -36,20 +37,23 @@ class RenderPipeline;
 
 
     class CmdListTreap : public Utility::ReferredObject {
+        friend class RenderPipeline;
         struct Node {
+            
             ComPtr<ID3D11CommandList> list1;
             ComPtr<ID3D11CommandList> list2;
             
-            volatile ComPtr<ID3D11CommandList> *p1;
-            volatile ComPtr<ID3D11CommandList> *p2;
+            ComPtr<ID3D11CommandList> * volatile p1;
+            ComPtr<ID3D11CommandList> * volatile p2;
             inline Node() {
-                p1 = &list1;
-                p2 = &list2;
-                size = 1, left = right = -1, weight = priority = 0;
+                p1 = std::addressof(list1);
+                p2 = std::addressof(list2);
+                size = 1, left = right = nullptr, weight = priority = 0;
+              
             }
 
             inline void Swap() {
-                p2 = (volatile ComPtr<ID3D11CommandList>*)InterlockedExchangePointer((volatile PVOID*)&p1, (PVOID)p2);
+                p2 = (ComPtr<ID3D11CommandList>*)InterlockedExchangePointer((volatile PVOID*)&p1, (PVOID)p2);
             }
 
             inline void Destroy() {
@@ -58,36 +62,38 @@ class RenderPipeline;
             }
 
             int size;
-            int left, right;
             int priority;  //rendering priority
 
             int weight; //only for treap itself
-
-        }*NodePool;
-        int NodeRoot;
+            Node *left, *right;
+        }*NodeRoot = nullptr;
+        
         inline int lsize(Node *n) {
-            return (~n->left) ? NodePool[n->left].size : 0;
+            return (n->left) ? n->left->size : 0;
         }
         inline int rsize(Node *n) {
-            return (~n->right) ? NodePool[n->right].size : 0;
+            return (n->right) ? n->right->size : 0;
         }
         inline void Pushup(Node *n) {
-            size = 1+lsize(n) + rsize(n);
+            n->size = 1+lsize(n) + rsize(n);
         }
-
-        int size, capability;
+        int size = 0;
         std::mutex lock;
         inline int GetRand() {
             static std::default_random_engine engine;
-            static std::uniform_int_distribution<int> distribution(-2147483647, 2147483647);
+            static std::uniform_int_distribution<int> distribution(-32767, 32767);
             static auto mrand = std::bind(distribution, engine);
             return mrand();
         }
         inline Node *NewNode(int priority, int *id) {
             //std::lock_guard<std::mutex> g(lock);
-            Node node;
-            node.priority = priority;
-            node.weight = GetRand();
+            if(size + 1 > 4096)
+                throw std::runtime_error("Treap : Too many nodes");
+            size++;
+            Node *node = new Node;
+            node->priority = priority;
+            node->weight = GetRand();
+            /*
             if (size + 1 > capability) {
                 capability *= 2;
                 Node *NewPool = (Node *)malloc(sizeof(Node) * capability);
@@ -98,26 +104,25 @@ class RenderPipeline;
                 free(NodePool);
                 NodePool = NewPool;
             }
-            *id = size;
-            size++;
-            NodePool[*id] = std::move(node);
-            return NodePool + (*id);
+            */
+            *id = node->weight;
+            return node; 
         }
 
-        int NodeRank(int n, int value);
-        int DoInsert(int xnode, int ynode);
-        std::pair<int, int> DoInsert2(int n, int k);
+        int NodeRank(Node *x, int value);
+        Node *DoInsert(Node *x, Node *y);
+        std::pair<Node *, Node *> DoInsert2(Node *x, int k);
         int DoErase();
         void DoClear();
-        void DoRender(int u);
+        void DoRender(Node *u);
         Utility::ReferPtr<D3DDevice> device;
+
     public:
         void Initialize(D3DDevice *d) {
             device = d;
-            size = 0;
-            capability = 128;
-            NodePool = (Node *)malloc(sizeof(Node)*capability); //yes, malloc...
-            NodeRoot = -1;
+            //capability = 128;
+            //NodePool = (Node *)malloc(sizeof(Node)*capability); //yes, malloc...
+            //NodeRoot = -1;
         }
         void UnInitialize() {
             //
@@ -132,6 +137,8 @@ class RenderPipeline;
         void Erase(RenderPipeline *rp);
         void Clear();
         void Render();
+
+        void Swap(RenderPipeline*);
     };
 
 

@@ -47,7 +47,7 @@ HFWindow.new("恋恋 VS 紫妈", 300, 300) {
 		end
         rp.clear(HFColorRGBA(0.0, 0.0, 0.0, 0.0))
         rp.draw(0, 4)
-		re.push(rp)
+		re.push(rp, 1)
 		timer.await
     }
 	re.terminate

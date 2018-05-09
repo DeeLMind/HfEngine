@@ -32,8 +32,7 @@ public:
 };
 
 class RenderPipeline : public Utility::ReferredObject {
-    //Data for CmdListTreap
-    int tid;
+    CmdListTreap::Node *pnode;
 public:
     Utility::ReferPtr<D3DDevice> device;
     ComPtr<ID3D11DeviceContext> native_context;
@@ -56,7 +55,6 @@ public:
     friend class CmdListTreap;
    
     void Initialize(D3DDevice *d) {
-        tid = 0;
         device = d;
         device->native_device->CreateDeferredContext(0, &native_context);
     }
@@ -186,15 +184,17 @@ public:
             }
         });
     }
-    inline void Push(RenderPipeline *rp) {
-        ID3D11CommandList *list;
-        rp->native_context->FinishCommandList(true, &list);
+    inline void Push(RenderPipeline *rp, int priority) {
+       
         if(!exit_flag){
             //queue_lock.lock();
             //list_queue.push(list);
             //queue_lock.unlock();
-            treap->Insert(rp, 233);
+            treap->Insert(rp, priority);
         }
+    }
+    inline void Render(RenderPipeline *rp) {
+        treap->Swap(rp);
     }
     inline void Terminate() {
         exit_flag = true;

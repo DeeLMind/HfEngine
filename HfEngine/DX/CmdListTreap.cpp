@@ -5,10 +5,14 @@
 void CmdListTreap::Insert(RenderPipeline *rp, int priority) {
     std::lock_guard<std::mutex> g(lock);
     int id;
-    NewNode(priority, &id);
-    rp->tid = id; //bind the id
+    auto node = NewNode(priority, &id);
+    rp->pnode = node;
     auto p = DoInsert2(NodeRoot, NodeRank(NodeRoot, priority));
-    NodeRoot = DoInsert(DoInsert(p.first, id), p.second); 
+    NodeRoot = DoInsert(DoInsert(p.first, node), p.second); 
+}
+void CmdListTreap::Swap(RenderPipeline *rp) {
+    rp->native_context->FinishCommandList(true, rp->pnode->p1->ReleaseAndGetAddressOf());
+    rp->pnode->Swap();
 }
 void CmdListTreap::Clear() {
 
@@ -24,47 +28,45 @@ void CmdListTreap::SetPriority(RenderPipeline *rp, int priority) {
 
 }
 
-int CmdListTreap::NodeRank(int n, int value) {
-    if(n == -1)return 0;
-    if(value < NodePool[n].priority)return NodeRank(NodePool[n].left, value);
-    else return NodeRank(NodePool[n].right, value) + 1 + lsize(NodePool+n);
+int CmdListTreap::NodeRank(Node *n, int value) {
+    if(!n)return 0;
+    if(value < n->priority)return NodeRank(n->left, value);
+    else return NodeRank(n->right, value) + 1 + lsize(n);
 }
 
-int CmdListTreap::DoInsert(int x, int y) {
-    if (x == -1) {
-        Pushup(NodePool + y);
+CmdListTreap::Node *CmdListTreap::DoInsert(Node *x, Node *y) {
+    if (!x) {
+        return y;
+    }
+    if (!y) {
         return x;
     }
-    if (y == -1) {
-        Pushup(NodePool + x);
-        return x;
-    }
-    if (NodePool[x].weight < NodePool[y].weight) {
-        NodePool[x].right = DoInsert(NodePool[x].right, y);
-        Pushup(NodePool+x);
+    if (x->weight < y->weight) {
+        x->right = DoInsert(x->right, y);
+        Pushup(x);
         return x;
     }
     else {
-        NodePool[y].left = DoInsert(x, NodePool[y].left);
-        Pushup(NodePool+y);
+        y->left = DoInsert(x, x->left);
+        Pushup(y);
         return y;
     }
 }
 
-std::pair<int, int> CmdListTreap::DoInsert2(int n, int k)
+std::pair<CmdListTreap::Node *, CmdListTreap::Node *> CmdListTreap::DoInsert2(Node *n, int k)
 {
-    auto r = std::pair<int, int>(-1, -1);
-    if(n == -1)return r;
-    if (lsize(NodePool + n) >= k) {
-        r = DoInsert2(NodePool[n].left, k);
-        NodePool[n].left = r.second;
-        Pushup(NodePool+n);
+    auto r = std::pair<Node *, Node *>(nullptr, nullptr);
+    if(!n)return r;
+    if (lsize(n) >= k) {
+        r = DoInsert2(n->left, k);
+        n->left = r.second;
+        Pushup(n);
         r.second = n;
     }
     else {
-        r = DoInsert2(NodePool[n].right, k-lsize(NodePool+n)-1);
-        NodePool[n].right = r.first;
-        Pushup(NodePool+n);
+        r = DoInsert2(n->right, k-lsize(n)-1);
+        n->right = r.first;
+        Pushup(n);
         r.first = n;
     }
     return r;
@@ -78,9 +80,10 @@ void CmdListTreap::DoClear() {
 
 }
 
-void CmdListTreap::DoRender(int u) {
-    if(u == -1)return;
-    if(NodePool[u].right != -1)DoRender(NodePool[u].right);
-    device->native_immcontext->ExecuteCommandList(NodePool[u].list1.Get(), false);
-    if(NodePool[u].left != -1)DoRender(NodePool[u].left);
+void CmdListTreap::DoRender(Node *u) {
+    if(!u)return;
+    if(u->right)DoRender(u->right);
+    auto l = u->p1->Get();
+    if(l)device->native_immcontext->ExecuteCommandList(l, false);
+    if(u->left)DoRender(u->left);
 }
